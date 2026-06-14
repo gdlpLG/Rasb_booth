@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#111">
+    <title>Pibooth</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="app">
+        <!-- ===== PAGE ACCUEIL ===== -->
+        <div id="page-home" class="page active">
+            <!-- Dernière photo -->
+            <div class="last-photo" id="lastPhotoWrap">
+                <div class="last-photo-placeholder" id="lastPhotoPlaceholder">
+                    <span>📷</span>
+                    <p>Aucune photo pour l'instant</p>
+                </div>
+                <img id="lastPhoto" src="" alt="Dernière photo" style="display:none" onclick="openLightboxFromLatest()">
+            </div>
+
+            <!-- Boutons capture -->
+            <div class="capture-grid">
+                <button class="cap-btn blue" onclick="doCapture(1, false)">
+                    <span class="cap-icon">📷</span>
+                    <span class="cap-label">1 Photo</span>
+                </button>
+                <button class="cap-btn purple" onclick="doCapture(1, true)">
+                    <span class="cap-icon">⏱️</span>
+                    <span class="cap-label">1 Photo · 10s</span>
+                </button>
+                <button class="cap-btn blue" onclick="doCapture(4, false)">
+                    <span class="cap-icon">🖼️</span>
+                    <span class="cap-label">4 Photos</span>
+                </button>
+                <button class="cap-btn purple" onclick="doCapture(4, true)">
+                    <span class="cap-icon">⏱️</span>
+                    <span class="cap-label">4 Photos · 10s</span>
+                </button>
+            </div>
+
+            <!-- Bouton galerie -->
+            <button class="nav-btn" onclick="showPage('gallery')">🖼️ Voir la galerie</button>
+        </div>
+
+        <!-- ===== PAGE TIMER ===== -->
+        <div id="page-timer" class="page">
+            <div class="timer-center">
+                <div class="timer-num" id="timerCount">10</div>
+                <div class="timer-text">Souriez !</div>
+            </div>
+        </div>
+
+        <!-- ===== PAGE GALERIE ===== -->
+        <div id="page-gallery" class="page">
+            <div class="gal-header">
+                <button class="gal-back" onclick="showPage('home')">← Retour</button>
+                <h2>Galerie</h2>
+                <button class="gal-refresh" onclick="loadGallery()">↻</button>
+            </div>
+            <div class="gal-list" id="galList">
+                <p class="gal-empty">Chargement…</p>
+            </div>
+        </div>
+
+        <!-- ===== LIGHTBOX ===== -->
+        <div id="lightbox" class="lightbox" onclick="closeLightbox(event)">
+            <div class="lb-inner" onclick="event.stopPropagation()">
+                <button class="lb-x" onclick="closeLightbox()">✕</button>
+                <img id="lbImg" src="" alt="">
+                <div class="lb-actions">
+                    <button class="lb-print-btn" onclick="printPhoto()">🖨️ Imprimer</button>
+                </div>
+                <div class="lb-msg" id="lbMsg"></div>
+            </div>
+        </div>
+
+        <!-- ===== TOAST ===== -->
+        <div class="toast" id="toast"></div>
+
+        <!-- Status indicator -->
+        <div class="status-indicator" id="statusDot" title="Connexion"></div>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
