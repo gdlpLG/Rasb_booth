@@ -107,34 +107,9 @@ def create_flask_app():
     @app.route('/api/action/capture', methods=['POST'])
     def api_capture():
         """Trigger a capture (same as pressing the capture button)."""
-        # Check if timer mode is requested
-        use_timer = False
-        if request.is_json:
-            data = request.get_json()
-            use_timer = data.get('use_timer', False)
-        
-        # Configure gphoto2 drive mode before capture
-        # Note: We apply the config but let Pibooth handle the actual capture
-        # The drivemode will be used when gphoto2 captures the image
-        if use_timer:
-            try:
-                LOGGER.info("Setting camera to timer mode (10s)")
-                result = subprocess.run(['gphoto2', '--set-config', 'drivemode=1'], 
-                             capture_output=True, timeout=5, check=False)
-                # Give camera time to apply settings
-                time.sleep(0.3)
-            except Exception as e:
-                LOGGER.warning("Could not set timer mode: %s", e)
-        else:
-            try:
-                LOGGER.info("Setting camera to single shot mode")
-                result = subprocess.run(['gphoto2', '--set-config', 'drivemode=0'], 
-                             capture_output=True, timeout=5, check=False)
-                # Give camera time to apply settings
-                time.sleep(0.3)
-            except Exception as e:
-                LOGGER.warning("Could not set single shot mode: %s", e)
-        
+        # Note: The timer countdown is handled by the web interface (JavaScript).
+        # We simply trigger the capture event when the user clicks.
+        # Pibooth will handle the actual camera capture.
         from pibooth_web import post_capture_event
         ok = post_capture_event()
         return jsonify({"success": ok, "action": "capture"})
