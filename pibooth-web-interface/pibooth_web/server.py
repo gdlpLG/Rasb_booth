@@ -145,9 +145,23 @@ def create_flask_app():
         from pibooth_web import get_state, get_app, get_latest_picture
         app_inst = get_app()
         state = get_state()
+        
+        # Check camera connection status
+        camera_connected = False
+        if app_inst and hasattr(app_inst, 'camera') and app_inst.camera:
+            try:
+                if hasattr(app_inst.camera, 'is_connected'):
+                    camera_connected = app_inst.camera.is_connected()
+                else:
+                    # Fallback: assume connected if camera object exists
+                    camera_connected = True
+            except Exception:
+                camera_connected = False
+        
         data = {
             "state": state,
             "ready": app_inst is not None,
+            "camera_connected": camera_connected,
             "capture_choices": list(app_inst.capture_choices) if app_inst else [],
             "capture_nbr": app_inst.capture_nbr if app_inst else None,
             "count_taken": app_inst.count.taken if app_inst else 0,

@@ -222,6 +222,10 @@ function startStatusMonitoring() {
             .then(r => r.json())
             .then(data => {
                 const state = data.state;
+                const cameraConnected = data.camera_connected;
+                
+                // Update camera indicator
+                updateCameraIndicator(cameraConnected);
                 
                 // États qui indiquent que Pibooth travaille
                 const workingStates = ['choose', 'chosen', 'preview', 'capture', 'processing'];
@@ -250,9 +254,21 @@ function startStatusMonitoring() {
                     // Pibooth a terminé
                     hideWorkingOverlay();
                 }
+                
+                // Disable capture buttons if camera is disconnected
+                if (!cameraConnected && !isWorking) {
+                    document.querySelectorAll('.cap-btn').forEach(btn => {
+                        btn.disabled = true;
+                    });
+                } else if (cameraConnected && !isWorking) {
+                    document.querySelectorAll('.cap-btn').forEach(btn => {
+                        btn.disabled = false;
+                    });
+                }
             })
             .catch(() => {
-                // En cas d'erreur, on laisse l'overlay tel quel
+                // En cas d'erreur de connexion, afficher la caméra comme déconnectée
+                updateCameraIndicator(false);
             });
     }, 500);
 }
@@ -263,4 +279,32 @@ function stopStatusMonitoring() {
         statusCheckInterval = null;
     }
     hideWorkingOverlay();
+}
+
+// ===== Camera Indicator =====
+let lastCameraState = null;
+
+function updateCameraIndicator(connected) {
+    const indicator = document.getElementById('cameraIndicator');
+    
+    // Only update if state changed
+    if (connected === lastCameraState) return;
+    lastCameraState = connected;
+    
+    // Remove all state classes
+    indicator.classList.remove('connected', 'disconnected');
+    
+    if (connected) {
+        indicator.classList.add('connected');
+        indicator.title = 'Caméra connectée ✓';
+        
+        // Show toast only when reconnecting (not on initial load)
+        if (lastCameraState === false) {
+            toast('📷 Caméra reconnectée !');
+        }
+    } else {
+        indicator.classList.add('disconnected');
+        indicator.title = 'Caméra déconnectée ⚠️';
+        toast('⚠️ Caméra déconnectée - Veuillez la reconnecter');
+    }
 }

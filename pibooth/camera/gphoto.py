@@ -88,6 +88,8 @@ class GpCamera(BaseCamera):
         self._gp_logcb = None
         self._preview_compatible = True
         self._preview_viewfinder = False
+        self._is_connected = True
+        self._last_connection_check = time.time()
 
     def _specific_initialization(self):
         """Camera initialization.
@@ -329,6 +331,54 @@ class GpCamera(BaseCamera):
             self.set_config_value('imgsettings', 'iso', self.preview_iso)
 
         self._hide_overlay()  # If stop_preview() has not been called
+
+    def is_connected(self):
+        """Check if camera is still connected and attempt reconnection if needed.
+        Returns True if connected, False otherwise.
+        """
+        # Only check every 2 seconds to avoid performance impact
+        now = time.time()
+        if now - self._last_connection_check < 2.0:
+            return self._is_connected
+        
+        self._last_connection_check = now
+        
+        try:
+            # Try to get camera summary as a lightweight connection test
+            self._cam.get_summary()
+            if not self._is_connected:
+                LOGGER.info("Camera reconnected successfully")
+            self._is_connected = True
+        except (gp.GPhoto2Error, AttributeError) as ex:
+            if self._is_connected:
+                LOGGER.error("Camera disconnected: %s", ex)
+                self._is_connected = False
+            
+            # If camera is disconnected, try to reconnect
+            if not self._is_connected:
+                LOGGER.info("Attempting to reconnect camera...")
+                try:
+                    # Try to reinitialize the camera
+                    new_cam = get_gp_camera_proxy()
+                    if new_cam:
+                        # Close old camera instance
+                        try:
+                            if self._cam:
+                                self._cam.exit()
+                        except Exception:
+                            pass
+                        
+                        # Replace with new camera
+                        self._cam = new_cam
+                        self._specific_initialization()
+                        self._is_connected = True
+                        LOGGER.info("Camera successfully reconnected!")
+                    else:
+                        LOGGER.debug("Camera not yet available for reconnection")
+                except Exception as reconnect_ex:
+                    LOGGER.debug("Reconnection attempt failed: %s", reconnect_ex)
+        
+        return self._is_connected
 
     def quit(self):
         """Close the camera driver, it's definitive.

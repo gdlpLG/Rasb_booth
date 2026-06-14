@@ -151,6 +151,19 @@ body{
 }
 .status-indicator.on{background:#4ade80}
 
+/* ===== CAMERA INDICATOR ===== */
+.camera-indicator{
+    position:fixed;top:10px;right:34px;
+    font-size:16px;opacity:.4;z-index:100;
+    transition:opacity .3s,filter .3s;
+}
+.camera-indicator.connected{
+    opacity:1;filter:drop-shadow(0 0 4px #4ade80);
+}
+.camera-indicator.disconnected{
+    opacity:1;filter:grayscale(1) drop-shadow(0 0 4px #ef4444);
+}
+
 /* ===== OVERLAY EN COURS ===== */
 .working-overlay{
     position:fixed;inset:0;background:rgba(0,0,0,.92);
