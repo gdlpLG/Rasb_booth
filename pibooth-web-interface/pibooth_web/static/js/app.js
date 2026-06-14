@@ -3,22 +3,30 @@
 const socket = io();
 let currentLbFile = null;
 let latestFilename = null;
+let statusCheckInterval = null;
+let isWorking = false;
 
 // ===== Socket IO =====
 socket.on('connect', () => {
     document.getElementById('statusDot').classList.add('on');
     loadLatestPhoto();
+    startStatusMonitoring();
 });
 socket.on('disconnect', () => {
     document.getElementById('statusDot').classList.remove('on');
+    stopStatusMonitoring();
 });
 socket.on('new_picture', (data) => {
     // Refresh only when a new picture is actually ready
     loadLatestPhoto();
+    hideWorkingOverlay();
 });
 
 // ===== Init =====
-document.addEventListener('DOMContentLoaded', loadLatestPhoto);
+document.addEventListener('DOMContentLoaded', () => {
+    loadLatestPhoto();
+    startStatusMonitoring();
+});
 
 // ===== Pages =====
 function showPage(id) {
@@ -78,7 +86,8 @@ function triggerCapture(count, useTimer) {
                 // Automatically send the choice after Pibooth enters choice mode
                 // Wait 200ms for Pibooth to be ready
                 setTimeout(() => {
-                    const direction = (count === 1) ? 'left' : 'right';
+                    // Pibooth: LEFT = 4 photos, RIGHT = 1 photo
+                    const direction = (count === 1) ? 'right' : 'left';
                     fetch(`/api/action/choose/${direction}`, { method: 'POST' })
                         .then(r => r.json())
                         .catch(err => console.warn('Choice error:', err));
@@ -177,4 +186,81 @@ function toast(text) {
     t.textContent = text;
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ===== Working Overlay =====
+function showWorkingOverlay(text = '📸 Capture en cours...', subtext = 'Veuillez patienter') {
+    isWorking = true;
+    const overlay = document.getElementById('workingOverlay');
+    document.getElementById('workingText').textContent = text;
+    document.getElementById('workingSubtext').textContent = subtext;
+    overlay.classList.add('active');
+    
+    // Désactiver tous les boutons de capture et navigation
+    document.querySelectorAll('.cap-btn, .nav-btn').forEach(btn => {
+        btn.disabled = true;
+    });
+}
+
+function hideWorkingOverlay() {
+    isWorking = false;
+    document.getElementById('workingOverlay').classList.remove('active');
+    
+    // Réactiver tous les boutons
+    document.querySelectorAll('.cap-btn, .nav-btn').forEach(btn => {
+        btn.disabled = false;
+    });
+}
+
+// ===== Status Monitoring =====
+function startStatusMonitoring() {
+    if (statusCheckInterval) return;
+    
+    // Vérifier l'état toutes les 500ms
+    statusCheckInterval = setInterval(() => {
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const state = data.state;
+                
+                // États qui indiquent que Pibooth travaille
+                const workingStates = ['choose', 'chosen', 'preview', 'capture', 'processing'];
+                
+                if (workingStates.includes(state) && !isWorking) {
+                    // Pibooth a commencé à travailler
+                    let text = '📸 Capture en cours...';
+                    let subtext = 'Veuillez patienter';
+                    
+                    if (state === 'choose' || state === 'chosen') {
+                        text = '📋 Sélection en cours...';
+                        subtext = 'Choix de la mise en page';
+                    } else if (state === 'preview') {
+                        text = '👀 Prévisualisation...';
+                        subtext = 'Préparez-vous !';
+                    } else if (state === 'capture') {
+                        text = '📸 Capture !';
+                        subtext = 'Souriez !';
+                    } else if (state === 'processing') {
+                        text = '🎨 Création de la photo...';
+                        subtext = 'Traitement en cours';
+                    }
+                    
+                    showWorkingOverlay(text, subtext);
+                } else if (state === 'wait' && isWorking) {
+                    // Pibooth a terminé
+                    hideWorkingOverlay();
+                }
+            })
+            .catch(() => {
+                // En cas d'erreur, on laisse l'overlay tel quel
+            });
+    }, 500);
+}
+
+function stopStatusMonitoring() {
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+    hideWorkingOverlay();
 }

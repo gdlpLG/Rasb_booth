@@ -113,31 +113,10 @@ def create_flask_app():
             data = request.get_json()
             use_timer = data.get('use_timer', False)
         
-        # Configure gphoto2 drive mode BEFORE Pibooth starts the capture
-        # This sets the camera's internal timer, then Pibooth will trigger it
-        if use_timer:
-            try:
-                LOGGER.info("Configuring camera timer mode (10s)")
-                subprocess.run(['gphoto2', '--set-config', 'drivemode=1'], 
-                             capture_output=True, timeout=5, check=False)
-                # Give camera time to fully apply the setting
-                time.sleep(0.5)
-            except Exception as e:
-                LOGGER.warning("Could not set timer mode: %s", e)
-        else:
-            try:
-                LOGGER.info("Configuring camera single shot mode")
-                subprocess.run(['gphoto2', '--set-config', 'drivemode=0'], 
-                             capture_output=True, timeout=5, check=False)
-                # Give camera time to fully apply the setting
-                time.sleep(0.5)
-            except Exception as e:
-                LOGGER.warning("Could not set single shot mode: %s", e)
-        
         # Now trigger Pibooth's capture process
         from pibooth_web import post_capture_event
-        ok = post_capture_event()
-        return jsonify({"success": ok, "action": "capture"})
+        ok = post_capture_event(use_timer=use_timer)
+        return jsonify({"success": ok, "action": "capture", "use_timer": use_timer})
 
     @app.route('/api/action/print', methods=['POST'])
     def api_print():
@@ -280,7 +259,7 @@ def create_flask_app():
         if not filepath:
             return jsonify({"success": False, "error": "File not found"}), 404
 
-        # Print via CUPS
+        # Print via IPP for Canon SELPHY
         try:
             printer_name = _resolve_printer_name()
             if not printer_name:
@@ -288,25 +267,78 @@ def create_flask_app():
 
             LOGGER.info("Printing %s on %s", filepath, printer_name)
 
-            # Use subprocess to send JPEG natively (avoids raster conversion
-            # which crashes on Raspberry Pi with SELPHY printers).
             import subprocess
-            result = subprocess.run(
-                ["lp", "-d", printer_name, "-o", "raw", "--", filepath],
-                capture_output=True, text=True, timeout=30,
-            )
-            if result.returncode != 0:
-                err = result.stderr.strip() or result.stdout.strip()
-                LOGGER.error("lp error: %s", err)
-                return jsonify({"success": False, "error": err}), 500
+            import tempfile
+            
+            # For Canon SELPHY printers, use ipptool to send JPEG directly
+            # This avoids CUPS raster conversion which crashes on Raspberry Pi
+            if "SELPHY" in printer_name.upper() or "CP" in printer_name.upper():
+                # Create temporary IPP test file with proper line breaks
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.test', delete=False) as tf:
+                    tf.write('{\n')
+                    tf.write('    OPERATION Print-Job\n')
+                    tf.write('    GROUP operation-attributes-tag\n')
+                    tf.write('    ATTR charset attributes-charset utf-8\n')
+                    tf.write('    ATTR language attributes-natural-language en\n')
+                    tf.write('    ATTR uri printer-uri $uri\n')
+                    tf.write('    ATTR name requesting-user-name $user\n')
+                    tf.write('    ATTR mimeMediaType document-format image/jpeg\n')
+                    tf.write('    FILE $filename\n')
+                    tf.write('}\n')
+                    test_file = tf.name
+                
+                try:
+                    # Use ipptool to send JPEG directly to printer via IPP
+                    LOGGER.info("Sending print job via ipptool to ipp://localhost:60000/ipp/print")
+                    result = subprocess.run(
+                        ["ipptool", "-f", filepath, "ipp://localhost:60000/ipp/print", test_file],
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    
+                    # Log full output for debugging
+                    LOGGER.info("ipptool return code: %d", result.returncode)
+                    if result.stdout:
+                        LOGGER.info("ipptool stdout: %s", result.stdout)
+                    if result.stderr:
+                        LOGGER.info("ipptool stderr: %s", result.stderr)
+                    
+                    # Clean up test file
+                    os.unlink(test_file)
+                    
+                    # If ipptool returns 0, the print was successful
+                    # (even if stdout is empty, which seems to be the case for SELPHY)
+                    if result.returncode == 0:
+                        LOGGER.info("Print job submitted via IPP successfully (return code 0)")
+                        return jsonify({"success": True, 
+                                      "job_info": "Sent via IPP",
+                                      "printer": printer_name,
+                                      "file": os.path.basename(filepath)})
+                    else:
+                        err = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+                        LOGGER.error("ipptool command failed with code %d: %s", result.returncode, err)
+                        return jsonify({"success": False, "error": f"ipptool failed: {err}"}), 500
+                        
+                except Exception as e:
+                    # Clean up test file on error
+                    if os.path.exists(test_file):
+                        os.unlink(test_file)
+                    raise e
+            else:
+                # For non-SELPHY printers, use standard lp command
+                result = subprocess.run(
+                    ["lp", "-d", printer_name, "--", filepath],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if result.returncode != 0:
+                    err = result.stderr.strip() or result.stdout.strip()
+                    LOGGER.error("lp error: %s", err)
+                    return jsonify({"success": False, "error": err}), 500
 
-            # Extract job id from lp output like "request id is Printer-42 (1 file(s))"
-            job_info = result.stdout.strip()
-            LOGGER.info("Print job submitted: %s", job_info)
-
-            return jsonify({"success": True, "job_info": job_info,
-                            "printer": printer_name,
-                            "file": os.path.basename(filepath)})
+                job_info = result.stdout.strip()
+                LOGGER.info("Print job submitted: %s", job_info)
+                return jsonify({"success": True, "job_info": job_info,
+                              "printer": printer_name,
+                              "file": os.path.basename(filepath)})
 
         except Exception as exc:
             LOGGER.error("Print error: %s", exc, exc_info=True)

@@ -49,10 +49,19 @@ class CameraPlugin(object):
     @pibooth.hookimpl
     def state_wait_enter(self, app):
         app.capture_date = None
+        app.use_timer = False
         if len(app.capture_choices) > 1:
             app.capture_nbr = None
         else:
             app.capture_nbr = app.capture_choices[0]
+
+    @pibooth.hookimpl
+    def state_wait_do(self, app, events):
+        for event in events:
+            if event.type == pibooth.booth.BUTTONDOWN and event.capture:
+                app.use_timer = getattr(event, 'use_timer', False)
+                if app.use_timer:
+                    LOGGER.info("Capture requested with hardware timer")
 
     @pibooth.hookimpl
     def state_choose_do(self, app, events):
@@ -98,11 +107,12 @@ class CameraPlugin(object):
                 app.capture_nbr, effects))
 
         LOGGER.info("Take a capture")
+        use_timer = getattr(app, 'use_timer', False)
         if cfg.getboolean('WINDOW', 'flash'):
             with win.flash(2):  # Manage the window here, have no choice
-                app.camera.capture(effect)
+                app.camera.capture(effect, use_timer=use_timer)
         else:
-            app.camera.capture(effect)
+            app.camera.capture(effect, use_timer=use_timer)
 
         self.count += 1
 

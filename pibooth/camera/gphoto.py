@@ -287,7 +287,7 @@ class GpCamera(BaseCamera):
         self._hide_overlay()
         self._window = None
 
-    def capture(self, effect=None):
+    def capture(self, effect=None, use_timer=False):
         """Capture a new picture.
         """
         if self._preview_viewfinder:
@@ -296,6 +296,16 @@ class GpCamera(BaseCamera):
         effect = str(effect).lower()
         if effect not in self.IMAGE_EFFECTS:
             raise ValueError("Invalid capture effect '{}' (choose among {})".format(effect, self.IMAGE_EFFECTS))
+
+        # Configure drive mode for hardware timer
+        try:
+            if use_timer:
+                LOGGER.info("Enabling camera hardware timer (10s)")
+                self.set_config_value('capturesettings', 'drivemode', 'Timer 10 sec')
+            else:
+                self.set_config_value('capturesettings', 'drivemode', 'Single')
+        except Exception as ex:
+            LOGGER.warning("Could not set drivemode: %s", ex)
 
         if self.capture_iso != self.preview_iso:
             self.set_config_value('imgsettings', 'iso', self.capture_iso)

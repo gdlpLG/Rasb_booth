@@ -228,7 +228,7 @@ def get_picture_dirs():
             pass
     return []
 
-def post_capture_event():
+def post_capture_event(use_timer=False):
     """Post a capture button event into Pygame's event queue."""
     BUTTONDOWN = _get_buttondown_event_type()
     app = get_app()
@@ -236,8 +236,9 @@ def post_capture_event():
         return False
     event = pygame.event.Event(BUTTONDOWN, capture=1, printer=0,
                                button=app.buttons.capture)
+    event.use_timer = use_timer
     pygame.event.post(event)
-    LOGGER.info("Web: posted CAPTURE event")
+    LOGGER.info("Web: posted CAPTURE event (timer=%s)", use_timer)
     return True
 
 def post_print_event():
