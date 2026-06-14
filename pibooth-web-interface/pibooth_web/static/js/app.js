@@ -74,6 +74,16 @@ function triggerCapture(count, useTimer) {
             showPage('home');
             if (d.success) {
                 toast('📸 Capture lancée !');
+                
+                // Automatically send the choice after Pibooth enters choice mode
+                // Wait 200ms for Pibooth to be ready
+                setTimeout(() => {
+                    const direction = (count === 1) ? 'left' : 'right';
+                    fetch(`/api/action/choose/${direction}`, { method: 'POST' })
+                        .then(r => r.json())
+                        .catch(err => console.warn('Choice error:', err));
+                }, 200);
+                
                 // Photo will be refreshed automatically via SocketIO 'new_picture' event
             } else {
                 toast('❌ ' + (d.message || 'Erreur'));
