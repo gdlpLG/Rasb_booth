@@ -172,7 +172,8 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    toast('✅ Template activé !');
+                    alert('✅ Template activé: ' + data.template + '\n\n⚠️ IMPORTANT: Vous devez redémarrer Pibooth pour appliquer le changement!\n\nCommande SSH:\npkill -9 python3 && cd ~/Rasb_booth/pibooth && source venv/bin/activate && pibooth');
+                    toast('✅ Template activé ! Redémarrez Pibooth.');
                     loadTemplates();
                 } else {
                     toast('❌ ' + data.error);
