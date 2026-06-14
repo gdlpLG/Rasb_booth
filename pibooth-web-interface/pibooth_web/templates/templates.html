@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pibooth - Templates</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .template-card {
+            background: #222;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #333;
+        }
+        .template-card.active {
+            border-color: #4ade80;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
+        }
+        .template-info {
+            margin-bottom: 12px;
+        }
+        .template-name {
+            font-weight: bold;
+            font-size: 18px;
+            display: block;
+        }
+        .template-path {
+            font-size: 12px;
+            opacity: 0.5;
+            word-break: break-all;
+        }
+        .template-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 8px;
+            border: none;
+            c‍ursor: pointer;
+            font-weight: 600;
+        }
+        .btn-activate { background: #4ade80; color: #111; }
+        .btn-delete { background: #ef4444; color: #fff; }
+        .upload-section {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 14px;
+            margin-bottom: 24px;
+            border: 2px dashed #333;
+        }
+        .upload-title { margin-bottom: 15px; font-size: 18px; }
+        input[type="file"] {
+            display: block;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        .help-box {
+            background: #1e3a5f;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .help-box a { color: #4ade80; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="gal-header">
+            <button class="gal-back" onclick="window.location.href='/'">← Retour</button>
+            <h2>Gestion des Templates</h2>
+        </div>
+
+        <div style="padding: 16px;">
+            <div class="help-box">
+                <strong>💡 Comment ça marche ?</strong><br>
+                Les templates Pibooth utilisent des fichiers XML créés avec <a href="https://app.diagrams.net" target="_blank">diagrams.net</a>.<br>
+                Un seul fichier XML peut contenir les mises en page pour 1, 2, 3 ou 4 photos.
+            </div>
+
+            <div class="upload-section">
+                <div class="upload-title">📤 Ajouter un template (.xml)</div>
+                <input type="file" id="templateFile" accept=".xml">
+                <button class="nav-btn" style="margin:0; width:100%" onclick="uploadTemplate()">Uploader le template</button>
+            </div>
+
+            <div id="templateList">
+                <p style="text-align:center; opacity:0.5;">Chargement des templates...</p>
+            </div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+        function toast(text) {
+            const t = document.getElementById('toast');
+            t.textContent = text;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function loadTemplates() {
+            fetch('/api/templates/list')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('templateList');
+                    if (!data.templates || data.templates.length === 0) {
+                        list.innerHTML = '<p style="text-align:center; opacity:0.5;">Aucun template trouvé.</p>';
+                        return;
+                    }
+                    
+                    list.innerHTML = '';
+                    data.templates.forEach(tpl => {
+                        const card = document.createElement('div');
+                        card.className = 'template-card' + (tpl.active ? ' active' : '');
+                        card.innerHTML = `
+                            <div class="template-info">
+                                <span class="template-name">${tpl.name} ${tpl.active ? '✅' : ''}</span>
+                                <span class="template-path">${tpl.path}</span>
+                            </div>
+                            <div class="template-actions">
+                                ${!tpl.active ? `<button class="btn-small btn-activate" onclick="activateTemplate('${tpl.name}')">Activer</button>` : ''}
+                                <button class="btn-small btn-delete" onclick="deleteTemplate('${tpl.name}')">Supprimer</button>
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                })
+                .catch(err => {
+                    document.getElementById('templateList').innerHTML = '<p style="color:#ef4444">Erreur de chargement</p>';
+                });
+        }
+
+        function uploadTemplate() {
+            const fileInput = document.getElementById('templateFile');
+            if (fileInput.files.length === 0) {
+                toast('⚠️ Veuillez choisir un fichier');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            fetch('/api/templates/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    toast('✅ Template uploadé !');
+                    fileInput.value = '';
+                    loadTemplates();
+                } else {
+                    toast('❌ ' + data.error);
+                }
+            })
+            .catch(() => toast('❌ Erreur réseau'));
+        }
+
+        function activateTemplate(name) {
+            fetch('/api/templates/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    toast('✅ Template activé !');
+                    loadTemplates();
+                } else {
+                    toast('❌ ' + data.error);
+                }
+            });
+        }
+
+        function deleteTemplate(name) {
+            if (!confirm('Supprimer ce template ?')) return;
+            
+            fetch('/api/templates/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    toast('🗑️ Template supprimé');
+                    loadTemplates();
+                } else {
+                    toast('❌ ' + data.error);
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadTemplates);
+    </script>
+</body>
+</html>

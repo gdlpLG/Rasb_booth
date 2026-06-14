@@ -380,6 +380,131 @@ def create_flask_app():
 
         abort(404)
 
+    # -------------------------------------------------------------------
+    # Templates management
+    # -------------------------------------------------------------------
+    
+    @app.route('/templates')
+    def templates_page():
+        """Templates management page."""
+        return render_template('templates.html')
+
+    @app.route('/api/templates/list', methods=['GET'])
+    def api_templates_list():
+        """List all available templates."""
+        templates_dir = os.path.expanduser('~/pibooth_templates')
+        os.makedirs(templates_dir, exist_ok=True)
+        
+        # Get active template from config
+        active_template = None
+        try:
+            config_path = os.path.expanduser('~/.config/pibooth/pibooth.cfg')
+            if os.path.isfile(config_path):
+                import configparser
+                config = configparser.ConfigParser()
+                config.read(config_path)
+                if config.has_option('PICTURE', 'template'):
+                    active_path = config.get('PICTURE', 'template')
+                    active_template = os.path.basename(active_path) if active_path else None
+        except Exception as e:
+            LOGGER.warning("Could not read active template: %s", e)
+        
+        # List XML files
+        templates = []
+        for xml_file in glob.glob(os.path.join(templates_dir, '*.xml')):
+            name = os.path.basename(xml_file)
+            templates.append({
+                'name': name,
+                'path': xml_file,
+                'active': name == active_template
+            })
+        
+        return jsonify({'templates': templates, 'active': active_template})
+
+    @app.route('/api/templates/upload', methods=['POST'])
+    def api_templates_upload():
+        """Upload a new template XML file."""
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'success': False, 'error': 'Empty filename'}), 400
+        
+        if not file.filename.endswith('.xml'):
+            return jsonify({'success': False, 'error': 'Only XML files allowed'}), 400
+        
+        templates_dir = os.path.expanduser('~/pibooth_templates')
+        os.makedirs(templates_dir, exist_ok=True)
+        
+        # Sanitize filename
+        filename = os.path.basename(file.filename)
+        filepath = os.path.join(templates_dir, filename)
+        
+        try:
+            file.save(filepath)
+            LOGGER.info("Template uploaded: %s", filepath)
+            return jsonify({'success': True, 'filename': filename})
+        except Exception as e:
+            LOGGER.error("Upload error: %s", e)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/templates/activate', methods=['POST'])
+    def api_templates_activate():
+        """Activate a template by updating pibooth.cfg."""
+        data = request.get_json()
+        if not data or 'name' not in data:
+            return jsonify({'success': False, 'error': 'No template name provided'}), 400
+        
+        template_name = data['name']
+        templates_dir = os.path.expanduser('~/pibooth_templates')
+        template_path = os.path.join(templates_dir, template_name)
+        
+        if not os.path.isfile(template_path):
+            return jsonify({'success': False, 'error': 'Template not found'}), 404
+        
+        try:
+            config_path = os.path.expanduser('~/.config/pibooth/pibooth.cfg')
+            import configparser
+            config = configparser.ConfigParser()
+            config.read(config_path)
+            
+            if not config.has_section('PICTURE'):
+                config.add_section('PICTURE')
+            
+            config.set('PICTURE', 'template', template_path)
+            
+            with open(config_path, 'w') as f:
+                config.write(f)
+            
+            LOGGER.info("Template activated: %s", template_path)
+            return jsonify({'success': True, 'template': template_name})
+        except Exception as e:
+            LOGGER.error("Activation error: %s", e)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/templates/delete', methods=['POST'])
+    def api_templates_delete():
+        """Delete a template file."""
+        data = request.get_json()
+        if not data or 'name' not in data:
+            return jsonify({'success': False, 'error': 'No template name provided'}), 400
+        
+        template_name = data['name']
+        templates_dir = os.path.expanduser('~/pibooth_templates')
+        template_path = os.path.join(templates_dir, template_name)
+        
+        if not os.path.isfile(template_path):
+            return jsonify({'success': False, 'error': 'Template not found'}), 404
+        
+        try:
+            os.remove(template_path)
+            LOGGER.info("Template deleted: %s", template_path)
+            return jsonify({'success': True})
+        except Exception as e:
+            LOGGER.error("Delete error: %s", e)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     return app
 
 def emit_new_picture(filename):
