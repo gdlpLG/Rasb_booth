@@ -403,8 +403,16 @@ class TemplatePictureFactory(PilPictureFactory):
                 rect = Image.new('RGBA', (shape.width, shape.height), (255, 0, 0, 0))
                 draw = ImageDraw.Draw(rect)
                 font = fonts.get_pil_font(text, font_name, shape.width, shape.height)
-                _, text_height = font.getsize(text)
-                (text_width, _baseline), (offset_x, offset_y) = font.font.getsize(text)
+                
+                # Compatible with Pillow 10+ (getsize deprecated)
+                bbox = font.getbbox(text)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                # Get font metrics for positioning
+                font_bbox = font.font.getbbox(text)
+                offset_x = font_bbox[0]
+                offset_y = font_bbox[1]
 
                 x = 0
                 if align == self.CENTER:
