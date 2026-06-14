@@ -404,15 +404,13 @@ class TemplatePictureFactory(PilPictureFactory):
                 draw = ImageDraw.Draw(rect)
                 font = fonts.get_pil_font(text, font_name, shape.width, shape.height)
                 
-                # Compatible with Pillow 10+ (getsize deprecated)
+                # Compatible with Pillow 10+ (getsize and getsize deprecated)
+                # Use getbbox on the ImageFont object directly
                 bbox = font.getbbox(text)
                 text_width = bbox[2] - bbox[0]
                 text_height = bbox[3] - bbox[1]
-                
-                # Get font metrics for positioning
-                font_bbox = font.font.getbbox(text)
-                offset_x = font_bbox[0]
-                offset_y = font_bbox[1]
+                offset_x = bbox[0]
+                offset_y = bbox[1]
 
                 x = 0
                 if align == self.CENTER:
