@@ -146,39 +146,40 @@ def state_failsafe_enter(cfg, app, win):
 # ---------------------------------------------------------------------------
 # Preview frame capture for web streaming
 # ---------------------------------------------------------------------------
+# DISABLED: Preview not yet mapped to web page
 
-@hookimpl
-def state_preview_do(cfg, app, win):
-    """Capture the current Pygame display surface for web streaming."""
-    global _preview_frame, _preview_last_capture_time
-    now = time.time()
-    # Limit capture rate to _PREVIEW_FPS
-    if now - _preview_last_capture_time < 1.0 / _PREVIEW_FPS:
-        return
-    _preview_last_capture_time = now
-    try:
-        surface = pygame.display.get_surface()
-        if surface is None:
-            return
-        # Convert Pygame surface to JPEG bytes
-        raw_str = pygame.image.tostring(surface, 'RGB')
-        size = surface.get_size()
-        # Use PIL to create JPEG
-        from PIL import Image
-        img = Image.frombytes('RGB', size, raw_str)
-        buf = io.BytesIO()
-        img.save(buf, format='JPEG', quality=60)
-        with _preview_frame_lock:
-            _preview_frame = buf.getvalue()
-    except Exception as exc:
-        LOGGER.debug("Preview capture error: %s", exc)
+# @hookimpl
+# def state_preview_do(cfg, app, win):
+#     """Capture the current Pygame display surface for web streaming."""
+#     global _preview_frame, _preview_last_capture_time
+#     now = time.time()
+#     # Limit capture rate to _PREVIEW_FPS
+#     if now - _preview_last_capture_time < 1.0 / _PREVIEW_FPS:
+#         return
+#     _preview_last_capture_time = now
+#     try:
+#         surface = pygame.display.get_surface()
+#         if surface is None:
+#             return
+#         # Convert Pygame surface to JPEG bytes
+#         raw_str = pygame.image.tostring(surface, 'RGB')
+#         size = surface.get_size()
+#         # Use PIL to create JPEG
+#         from PIL import Image
+#         img = Image.frombytes('RGB', size, raw_str)
+#         buf = io.BytesIO()
+#         img.save(buf, format='JPEG', quality=60)
+#         with _preview_frame_lock:
+#             _preview_frame = buf.getvalue()
+#     except Exception as exc:
+#         LOGGER.debug("Preview capture error: %s", exc)
 
-@hookimpl
-def state_preview_exit(cfg, app, win):
-    """Clear preview frame when leaving preview state."""
-    global _preview_frame
-    with _preview_frame_lock:
-        _preview_frame = None
+# @hookimpl
+# def state_preview_exit(cfg, app, win):
+#     """Clear preview frame when leaving preview state."""
+#     global _preview_frame
+#     with _preview_frame_lock:
+#         _preview_frame = None
 
 # ---------------------------------------------------------------------------
 # Track the latest picture
@@ -186,10 +187,16 @@ def state_preview_exit(cfg, app, win):
 
 @hookimpl
 def state_processing_exit(cfg, app, win):
-    """When processing is done, record the latest picture path."""
+    """When processing is done, record the latest picture path and emit event."""
     global _latest_picture
     if app.previous_picture_file:
         _latest_picture = app.previous_picture_file
+        # Emit SocketIO event to notify web clients
+        try:
+            from pibooth_web.server import emit_new_picture
+            emit_new_picture(_latest_picture)
+        except Exception as exc:
+            LOGGER.debug("Could not emit new_picture event: %s", exc)
 
 # ---------------------------------------------------------------------------
 # Public API used by the Flask server

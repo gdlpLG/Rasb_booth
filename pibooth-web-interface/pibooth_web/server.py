@@ -12,10 +12,15 @@ import os
 import glob
 import logging
 import time
+import subprocess
 
-from flask import Flask, Response, jsonify, render_template, send_file, abort
+from flask import Flask, Response, jsonify, render_template, send_file, abort, request
+from flask_socketio import SocketIO, emit
 
 LOGGER = logging.getLogger("pibooth.web.server")
+
+# Global SocketIO instance
+_socketio = None
 
 def _resolve_printer_name():
     """Resolve the printer name to use for printing.
@@ -70,12 +75,17 @@ def _resolve_printer_name():
 
 def create_flask_app():
     """Create and configure the Flask application."""
+    global _socketio
+    
     template_dir = os.path.join(os.path.dirname(__file__), 'templates')
     static_dir = os.path.join(os.path.dirname(__file__), 'static')
 
     app = Flask(__name__,
                 template_folder=template_dir,
                 static_folder=static_dir)
+
+    # Initialize SocketIO
+    _socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
     # Disable Flask's default logging noise in production
     log = logging.getLogger('werkzeug')
@@ -97,6 +107,28 @@ def create_flask_app():
     @app.route('/api/action/capture', methods=['POST'])
     def api_capture():
         """Trigger a capture (same as pressing the capture button)."""
+        # Check if timer mode is requested
+        use_timer = False
+        if request.is_json:
+            data = request.get_json()
+            use_timer = data.get('use_timer', False)
+        
+        # Configure gphoto2 drive mode before capture
+        if use_timer:
+            try:
+                LOGGER.info("Setting camera to timer mode (10s)")
+                subprocess.run(['gphoto2', '--set-config', 'drivemode=1'], 
+                             capture_output=True, timeout=5, check=False)
+            except Exception as e:
+                LOGGER.warning("Could not set timer mode: %s", e)
+        else:
+            try:
+                LOGGER.info("Setting camera to single shot mode")
+                subprocess.run(['gphoto2', '--set-config', 'drivemode=0'], 
+                             capture_output=True, timeout=5, check=False)
+            except Exception as e:
+                LOGGER.warning("Could not set single shot mode: %s", e)
+        
         from pibooth_web import post_capture_event
         ok = post_capture_event()
         return jsonify({"success": ok, "action": "capture"})
@@ -298,21 +330,43 @@ def create_flask_app():
 
     return app
 
+def emit_new_picture(filename):
+    """Emit a SocketIO event when a new picture is ready.
+    
+    :param filename: path to the new picture file
+    """
+    global _socketio
+    if _socketio:
+        try:
+            basename = os.path.basename(filename)
+            LOGGER.info("Emitting new_picture event: %s", basename)
+            _socketio.emit('new_picture', {'filename': basename})
+        except Exception as exc:
+            LOGGER.error("Error emitting new_picture event: %s", exc)
+
 def run_server(flask_app, host, port):
-    """Run the Flask server (blocking – meant to be called in a thread).
+    """Run the Flask+SocketIO server (blocking – meant to be called in a thread).
 
-    Uses werkzeug.serving.make_server directly to avoid the Werkzeug 3.x
-    production-mode guard that blocks ``app.run()`` outside of debug mode.
-
-    :param flask_app: configured Flask application
+    :param flask_app: configured Flask application with SocketIO
     :param host: bind address
     :param port: bind port
     """
+    global _socketio
     try:
-        from werkzeug.serving import make_server
-        LOGGER.info("Starting Flask server on %s:%s", host, port)
-        srv = make_server(host, int(port), flask_app, threaded=True)
-        srv.serve_forever()
+        LOGGER.info("Starting Flask+SocketIO server on %s:%s", host, port)
+        if _socketio:
+            # Use SocketIO's run method which handles everything
+            _socketio.run(flask_app, 
+                         host=host, 
+                         port=int(port), 
+                         debug=False,
+                         use_reloader=False,
+                         allow_unsafe_werkzeug=True)
+        else:
+            # Fallback to regular Flask if SocketIO not initialized
+            from werkzeug.serving import make_server
+            srv = make_server(host, int(port), flask_app, threaded=True)
+            srv.serve_forever()
     except OSError as exc:
         LOGGER.error("Failed to start web server on %s:%s – %s", host, port, exc)
     except Exception as exc:

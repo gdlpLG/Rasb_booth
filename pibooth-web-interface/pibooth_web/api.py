@@ -130,6 +130,28 @@ class WebAPI:
         @self.flask_app.route('/api/action/capture', methods=['POST'])
         def action_capture():
             try:
+                # Check if timer mode is requested
+                use_timer = False
+                if request.is_json:
+                    data = request.get_json()
+                    use_timer = data.get('use_timer', False)
+                
+                # Configure gphoto2 drive mode before capture
+                if use_timer:
+                    try:
+                        LOGGER.info("Setting camera to timer mode (10s)")
+                        subprocess.run(['gphoto2', '--set-config', 'drivemode=1'], 
+                                     capture_output=True, timeout=5, check=False)
+                    except Exception as e:
+                        LOGGER.warning("Could not set timer mode: %s", e)
+                else:
+                    try:
+                        LOGGER.info("Setting camera to single shot mode")
+                        subprocess.run(['gphoto2', '--set-config', 'drivemode=0'], 
+                                     capture_output=True, timeout=5, check=False)
+                    except Exception as e:
+                        LOGGER.warning("Could not set single shot mode: %s", e)
+                
                 self._post_button_event(capture=True, printer=False)
                 return jsonify({'success': True, 'message': 'Capture triggered'})
             except Exception as e:

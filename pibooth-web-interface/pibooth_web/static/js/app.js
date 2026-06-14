@@ -12,8 +12,8 @@ socket.on('connect', () => {
 socket.on('disconnect', () => {
     document.getElementById('statusDot').classList.remove('on');
 });
-socket.on('status_update', () => {
-    // Refresh latest photo when state changes (new capture done)
+socket.on('new_picture', (data) => {
+    // Refresh only when a new picture is actually ready
     loadLatestPhoto();
 });
 
@@ -55,23 +55,26 @@ function doCapture(count, useTimer) {
     if (useTimer) {
         showPage('timer');
         startTimer(10, () => {
-            triggerCapture(count);
+            triggerCapture(count, true);
         });
     } else {
-        triggerCapture(count);
+        triggerCapture(count, false);
     }
 }
 
-function triggerCapture(count) {
-    fetch('/api/action/capture', { method: 'POST' })
+function triggerCapture(count, useTimer) {
+    const body = JSON.stringify({ use_timer: useTimer || false });
+    fetch('/api/action/capture', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body
+    })
         .then(r => r.json())
         .then(d => {
             showPage('home');
             if (d.success) {
                 toast('📸 Capture lancée !');
-                // Poll for new photo after a delay
-                setTimeout(loadLatestPhoto, 6000);
-                setTimeout(loadLatestPhoto, 12000);
+                // Photo will be refreshed automatically via SocketIO 'new_picture' event
             } else {
                 toast('❌ ' + (d.message || 'Erreur'));
             }
