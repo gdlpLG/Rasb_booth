@@ -114,18 +114,24 @@ def create_flask_app():
             use_timer = data.get('use_timer', False)
         
         # Configure gphoto2 drive mode before capture
+        # Note: We apply the config but let Pibooth handle the actual capture
+        # The drivemode will be used when gphoto2 captures the image
         if use_timer:
             try:
                 LOGGER.info("Setting camera to timer mode (10s)")
-                subprocess.run(['gphoto2', '--set-config', 'drivemode=1'], 
+                result = subprocess.run(['gphoto2', '--set-config', 'drivemode=1'], 
                              capture_output=True, timeout=5, check=False)
+                # Give camera time to apply settings
+                time.sleep(0.3)
             except Exception as e:
                 LOGGER.warning("Could not set timer mode: %s", e)
         else:
             try:
                 LOGGER.info("Setting camera to single shot mode")
-                subprocess.run(['gphoto2', '--set-config', 'drivemode=0'], 
+                result = subprocess.run(['gphoto2', '--set-config', 'drivemode=0'], 
                              capture_output=True, timeout=5, check=False)
+                # Give camera time to apply settings
+                time.sleep(0.3)
             except Exception as e:
                 LOGGER.warning("Could not set single shot mode: %s", e)
         
