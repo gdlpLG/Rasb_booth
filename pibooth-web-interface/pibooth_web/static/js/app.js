@@ -93,14 +93,9 @@ function openLightboxFromLatest() {
 
 // ===== Capture =====
 function doCapture(count, useTimer) {
-    if (useTimer) {
-        showPage('timer');
-        startTimer(10, () => {
-            triggerCapture(count, true);
-        });
-    } else {
-        triggerCapture(count, false);
-    }
+    // Toujours déclencher immédiatement
+    // Le retardateur de l'appareil photo fera le compte à rebours si useTimer=true
+    triggerCapture(count, useTimer || false);
 }
 
 function triggerCapture(count, useTimer) {

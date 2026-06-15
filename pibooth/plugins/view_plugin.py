@@ -81,7 +81,7 @@ class ViewPlugin(object):
                 return 'choose'
             if cfg.getfloat('WINDOW', 'chosen_delay') > 0:
                 return 'chosen'
-            return 'preview'
+            return 'capture'
 
     @pibooth.hookimpl
     def state_wait_exit(self, win):
@@ -101,7 +101,7 @@ class ViewPlugin(object):
             if cfg.getfloat('WINDOW', 'chosen_delay') > 0:
                 return 'chosen'
             else:
-                return 'preview'
+                return 'capture'
         elif self.choose_timer.is_timeout():
             return 'wait'
 
@@ -117,16 +117,23 @@ class ViewPlugin(object):
     @pibooth.hookimpl
     def state_chosen_validate(self):
         if self.layout_timer.is_timeout():
-            return 'preview'
+            return 'capture'
 
     @pibooth.hookimpl
     def state_preview_enter(self, app, win):
+        # Preview state kept for compatibility but bypassed in normal flow
         self.count += 1
         win.set_capture_number(self.count, app.capture_nbr)
 
     @pibooth.hookimpl
     def state_preview_validate(self):
         return 'capture'
+
+    @pibooth.hookimpl
+    def state_capture_enter(self, app, win):
+        # Increment counter when entering capture (was in preview before)
+        self.count += 1
+        win.set_capture_number(self.count, app.capture_nbr)
 
     @pibooth.hookimpl
     def state_capture_do(self, app, win):
@@ -136,7 +143,7 @@ class ViewPlugin(object):
     def state_capture_validate(self, app):
         if self.count >= app.capture_nbr:
             return 'processing'
-        return 'preview'
+        return 'capture'
 
     @pibooth.hookimpl
     def state_processing_enter(self, win):
