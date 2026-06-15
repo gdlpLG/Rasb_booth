@@ -404,8 +404,8 @@ class TemplatePictureFactory(PilPictureFactory):
                 draw = ImageDraw.Draw(rect)
                 
                 # Apply safety margin (15%) to prevent text cropping
-                safe_width = int(shape.width * 0.80)
-                safe_height = int(shape.height * 0.80)
+                safe_width = int(shape.width * 0.75)
+                safe_height = int(shape.height * 0.70)
                 font = fonts.get_pil_font(text, font_name, safe_width, safe_height)
                 
                 # Compatible with Pillow 10+ (getsize and getsize deprecated)
@@ -422,7 +422,7 @@ class TemplatePictureFactory(PilPictureFactory):
                 elif align == self.RIGHT:
                     x += (shape.width - text_width)
 
-                draw.text((x - offset_x // 2, (shape.height - text_height) // 2 - offset_y // 2), text, color, font=font)
+                draw.text((x - offset_x // 2, (shape.height - text_height) // 2 - 1.8*offset_y), text, color, font=font)
                 self._image_paste(rect, image, shape.x, shape.y, shape.rotation)
 
             elif shape.type == TemplateShapeParser.TYPE_IMAGE:
