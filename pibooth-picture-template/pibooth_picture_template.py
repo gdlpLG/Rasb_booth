@@ -402,7 +402,11 @@ class TemplatePictureFactory(PilPictureFactory):
                 text, font_name, color, align = self._texts[index]
                 rect = Image.new('RGBA', (shape.width, shape.height), (255, 0, 0, 0))
                 draw = ImageDraw.Draw(rect)
-                font = fonts.get_pil_font(text, font_name, shape.width, shape.height)
+                
+                # Apply safety margin (15%) to prevent text cropping
+                safe_width = int(shape.width * 0.80)
+                safe_height = int(shape.height * 0.80)
+                font = fonts.get_pil_font(text, font_name, safe_width, safe_height)
                 
                 # Compatible with Pillow 10+ (getsize and getsize deprecated)
                 # Use getbbox on the ImageFont object directly

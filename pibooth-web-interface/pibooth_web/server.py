@@ -170,6 +170,48 @@ def create_flask_app():
         }
         return jsonify(data)
 
+    @app.route('/api/system/info', methods=['GET'])
+    def api_system_info():
+        """Return system information (disk, temp, etc.)."""
+        import shutil
+        import platform
+        
+        # Disk usage
+        total, used, free = shutil.disk_usage("/")
+        disk_percent = round((used / total) * 100, 1)
+        
+        # CPU Temperature (Raspberry Pi specific)
+        temp = None
+        if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
+            try:
+                with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                    temp = round(int(f.read()) / 1000, 1)
+            except Exception:
+                pass
+        
+        return jsonify({
+            "disk_used_percent": disk_percent,
+            "disk_free_gb": round(free / (1024**3), 1),
+            "cpu_temp": temp,
+            "platform": platform.platform(),
+            "uptime": subprocess.check_output(['uptime', '-p']).decode().strip() if platform.system() != 'Windows' else "N/A"
+        })
+
+    @app.route('/api/logs', methods=['GET'])
+    def api_logs():
+        """Return the last lines of the pibooth log file."""
+        log_file = os.path.expanduser('~/.pibooth/pibooth.log')
+        lines = int(request.args.get('lines', 100))
+        if os.path.isfile(log_file):
+            try:
+                # Use tail-like approach for efficiency on large files
+                with open(log_file, 'r') as f:
+                    content = f.readlines()
+                    return "".join(content[-lines:])
+            except Exception as e:
+                return f"Error reading logs: {e}", 500
+        return "Log file not found at " + log_file, 404
+
     @app.route('/api/pictures/latest', methods=['GET'])
     def api_latest_picture():
         """Serve the latest generated picture."""
@@ -389,6 +431,11 @@ def create_flask_app():
         """Templates management page."""
         return render_template('templates.html')
 
+    @app.route('/config')
+    def config_page():
+        """Configuration management page."""
+        return render_template('config.html')
+
     @app.route('/api/templates/list', methods=['GET'])
     def api_templates_list():
         """List all available templates."""
@@ -504,6 +551,82 @@ def create_flask_app():
         except Exception as e:
             LOGGER.error("Delete error: %s", e)
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # -------------------------------------------------------------------
+    # Configuration management
+    # -------------------------------------------------------------------
+
+    @app.route('/api/config', methods=['GET'])
+    def api_get_config():
+        """Return the current pibooth.cfg content as JSON."""
+        config_path = os.path.expanduser('~/.config/pibooth/pibooth.cfg')
+        if not os.path.isfile(config_path):
+            return jsonify({'success': False, 'error': 'Config file not found'}), 404
+        
+        try:
+            import configparser
+            config = configparser.ConfigParser()
+            config.read(config_path)
+            
+            res = {}
+            for section in config.sections():
+                res[section] = {}
+                for option in config.options(section):
+                    res[section][option] = config.get(section, option)
+            
+            return jsonify({'success': True, 'config': res})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/config', methods=['POST'])
+    def api_set_config():
+        """Update pibooth.cfg with provided JSON data."""
+        data = request.get_json()
+        if not data or 'config' not in data:
+            return jsonify({'success': False, 'error': 'No config data provided'}), 400
+        
+        config_path = os.path.expanduser('~/.config/pibooth/pibooth.cfg')
+        try:
+            import configparser
+            config = configparser.ConfigParser()
+            config.read(config_path)
+            
+            new_config_data = data['config']
+            for section, options in new_config_data.items():
+                if not config.has_section(section):
+                    config.add_section(section)
+                for option, value in options.items():
+                    config.set(section, option, str(value))
+            
+            # Backup before saving
+            backup_path = config_path + '.bak'
+            import shutil
+            shutil.copy2(config_path, backup_path)
+            
+            with open(config_path, 'w') as f:
+                config.write(f)
+            
+            LOGGER.info("Configuration updated and backed up to %s", backup_path)
+            return jsonify({'success': True})
+        except Exception as e:
+            LOGGER.error("Config update error: %s", e)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/action/restart', methods=['POST'])
+    def api_restart_pibooth():
+        """Restart the Pibooth service."""
+        try:
+            # Try to restart via systemd if possible
+            # This requires the user running the script to have sudo rights for this command
+            subprocess.Popen(['sudo', 'systemctl', 'restart', 'pibooth.service'])
+            return jsonify({'success': True, 'message': 'Restart command sent'})
+        except Exception as e:
+            # Fallback: just kill the process, systemd (if configured with Restart=always) will bring it back
+            try:
+                subprocess.Popen(['pkill', '-9', '-f', 'pibooth'])
+                return jsonify({'success': True, 'message': 'Process killed, waiting for restart'})
+            except Exception as e2:
+                return jsonify({'success': False, 'error': str(e2)}), 500
 
     return app
 

@@ -9,7 +9,16 @@
     <meta name="theme-color" content="#111">
     <title>Pibooth</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
+    <!-- Socket.IO embarqué localement (fonctionne hors-ligne / hotspot) -->
+    <script src="/static/js/socket.io.min.js"></script>
+    <!-- Fallback CDN si le fichier local manque -->
+    <script>
+        if (typeof io === 'undefined') {
+            var s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js';
+            document.head.appendChild(s);
+        }
+    </script>
 </head>
 <body>
     <div class="app">
@@ -47,6 +56,8 @@
             <!-- Boutons navigation -->
             <button class="nav-btn" onclick="showPage('gallery')">🖼️ Voir la galerie</button>
             <button class="nav-btn" onclick="window.location.href='/templates'">🎨 Gérer les templates</button>
+            <button class="nav-btn" onclick="window.location.href='/config'">⚙️ Configuration</button>
+            <button class="nav-btn" onclick="showPage('logs')">📋 Voir les logs</button>
         </div>
 
         <!-- ===== PAGE TIMER ===== -->
@@ -66,6 +77,23 @@
             </div>
             <div class="gal-list" id="galList">
                 <p class="gal-empty">Chargement…</p>
+            </div>
+        </div>
+
+        <!-- ===== PAGE LOGS ===== -->
+        <div id="page-logs" class="page">
+            <div class="gal-header">
+                <button class="gal-back" onclick="showPage('home')">← Retour</button>
+                <h2>Logs Système</h2>
+                <button class="gal-refresh" onclick="refreshLogs()">↻</button>
+            </div>
+            <div class="log-container">
+                <pre id="logContent">Chargement des logs...</pre>
+            </div>
+            <div class="sys-info-bar" id="sysInfoBar">
+                <span id="sysTemp">--°C</span> | 
+                <span id="sysDisk">--% libre</span> | 
+                <span id="sysUptime">--</span>
             </div>
         </div>
 

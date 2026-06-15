@@ -6,6 +6,7 @@
 import os
 import glob
 import subprocess
+import configparser
 import pygame
 from flask import Flask, render_template, jsonify, send_from_directory, send_file, abort, request
 from flask_socketio import SocketIO, emit
@@ -192,6 +193,103 @@ class WebAPI:
                 f = os.path.basename(self.pibooth_app.previous_picture_file)
                 return send_from_directory(d, f)
             return jsonify({'error': 'No picture available'}), 404
+
+        # ---- Configuration ----
+
+        @self.flask_app.route('/api/config')
+        def api_get_config():
+            """Read pibooth.cfg and return as JSON with comments as descriptions."""
+            cfg_path = os.path.expanduser("~/.config/pibooth/pibooth.cfg")
+            if not os.path.isfile(cfg_path):
+                return jsonify({'success': False, 'error': 'Config file not found'}), 404
+
+            try:
+                config = {}
+                descriptions = {}
+                current_section = None
+                pending_comments = []
+
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line_s = line.strip()
+                        if not line_s:
+                            pending_comments = []
+                            continue
+                        if line_s.startswith('[') and line_s.endswith(']'):
+                            current_section = line_s[1:-1]
+                            config[current_section] = {}
+                            descriptions[current_section] = {}
+                            pending_comments = []
+                        elif line_s.startswith('#'):
+                            pending_comments.append(line_s[1:].strip())
+                        elif '=' in line_s and current_section:
+                            key, _, value = line_s.partition('=')
+                            key = key.strip()
+                            value = value.strip()
+                            config[current_section][key] = value
+                            if pending_comments:
+                                descriptions[current_section][key] = ' '.join(pending_comments)
+                            pending_comments = []
+
+                return jsonify({'success': True, 'config': config, 'descriptions': descriptions})
+            except Exception as e:
+                LOGGER.error("Error reading config: %s", e)
+                return jsonify({'success': False, 'error': str(e)}), 500
+
+        @self.flask_app.route('/api/config', methods=['POST'])
+        def api_save_config():
+            """Save configuration changes to pibooth.cfg."""
+            cfg_path = os.path.expanduser("~/.config/pibooth/pibooth.cfg")
+            if not os.path.isfile(cfg_path):
+                return jsonify({'success': False, 'error': 'Config file not found'}), 404
+
+            try:
+                data = request.get_json()
+                new_config = data.get('config', {})
+
+                # Backup
+                import shutil
+                backup_path = cfg_path + '.bak'
+                shutil.copy2(cfg_path, backup_path)
+                LOGGER.info("Config backup created: %s", backup_path)
+
+                # Read existing file, update values in place to preserve comments
+                lines = []
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+
+                current_section = None
+                updated_keys = set()
+                new_lines = []
+
+                for line in lines:
+                    line_s = line.strip()
+                    if line_s.startswith('[') and line_s.endswith(']'):
+                        current_section = line_s[1:-1]
+                        new_lines.append(line)
+                    elif '=' in line_s and not line_s.startswith('#') and current_section:
+                        key = line_s.split('=', 1)[0].strip()
+                        if current_section in new_config and key in new_config[current_section]:
+                            new_val = new_config[current_section][key]
+                            new_lines.append(f"{key} = {new_val}\n")
+                            updated_keys.add((current_section, key))
+                        else:
+                            new_lines.append(line)
+                    else:
+                        new_lines.append(line)
+
+                with open(cfg_path, 'w', encoding='utf-8') as f:
+                    f.writelines(new_lines)
+
+                LOGGER.info("Config saved successfully")
+                return jsonify({'success': True, 'message': 'Configuration saved', 'backup': backup_path})
+            except Exception as e:
+                LOGGER.error("Error saving config: %s", e)
+                return jsonify({'success': False, 'error': str(e)}), 500
+
+        @self.flask_app.route('/config')
+        def config_page():
+            return render_template('config.html')
 
         # ---- Gallery ----
 

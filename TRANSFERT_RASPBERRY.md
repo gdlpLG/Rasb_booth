@@ -82,15 +82,17 @@ Depuis PowerShell sur Windows:
 
 ```powershell
 # Transférer le dossier pibooth-picture-template
-scp -r "pibooth-picture-template" pi@<ip-raspberry>:~/Rasb_booth/pibooth-master/
+scp -r "pibooth-picture-template" lucas@raspberrypi:~/Rasb_booth/
 
 # Transférer pibooth-web-interface
-scp -r "pibooth-web-interface" pi@<ip-raspberry>:~/Rasb_booth/pibooth-master/
+scp -r "pibooth-web-interface" lucas@raspberrypi:~/Rasb_booth/
 
 # Transférer les fichiers individuels
-scp "install_templates.sh" pi@<ip-raspberry>:~/Rasb_booth/pibooth-master/
-scp "TEMPLATES.md" pi@<ip-raspberry>:~/Rasb_booth/pibooth-master/
-scp "ROADMAP.md" pi@<ip-raspberry>:~/Rasb_booth/pibooth-master/
+scp "install_templates.sh" lucas@raspberrypi:~/Rasb_booth/
+scp "TEMPLATES.md" lucas@raspberrypi:~/Rasb_booth/
+scp "ROADMAP.md" lucas@raspberrypi:~/Rasb_booth/
+scp "pibooth.service" lucas@raspberrypi:~/Rasb_booth/pibooth/
+scp "INSTALL_SERVICE.md" lucas@raspberrypi:~/Rasb_booth/pibooth/
 ```
 
 Puis sur le Raspberry:

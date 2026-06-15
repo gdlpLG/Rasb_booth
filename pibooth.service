@@ -1,0 +1,18 @@
+[Unit]
+Description=Pibooth Photobooth Service
+After=network.target
+
+[Service]
+Type=simple
+User=lucas
+Group=lucas
+WorkingDirectory=/home/lucas/Rasb_booth/pibooth
+Environment="PATH=/home/lucas/Rasb_booth/pibooth/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/lucas/Rasb_booth/pibooth/venv/bin/pibooth
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

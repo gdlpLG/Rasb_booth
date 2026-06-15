@@ -34,6 +34,39 @@ function showPage(id) {
     document.getElementById('page-' + id).classList.add('active');
     if (id === 'gallery') loadGallery();
     if (id === 'home') loadLatestPhoto();
+    if (id === 'logs') refreshLogs();
+}
+
+// ===== Logs =====
+function refreshLogs() {
+    const el = document.getElementById('logContent');
+    el.textContent = 'Chargement des logs...';
+    fetch('/api/logs?lines=100')
+        .then(r => r.text())
+        .then(text => {
+            el.textContent = text;
+            // Scroll to bottom
+            el.scrollTop = el.scrollHeight;
+        })
+        .catch(err => {
+            el.textContent = 'Erreur lors du chargement des logs : ' + err;
+        });
+    
+    // Also refresh system info
+    refreshSystemInfo();
+}
+
+function refreshSystemInfo() {
+    fetch('/api/system/info')
+        .then(r => r.json())
+        .then(data => {
+            if (data.cpu_temp !== null) {
+                document.getElementById('sysTemp').textContent = data.cpu_temp + '°C';
+            }
+            document.getElementById('sysDisk').textContent = data.disk_free_gb + ' Go libres (' + (100 - data.disk_used_percent).toFixed(1) + '%)';
+            document.getElementById('sysUptime').textContent = data.uptime;
+        })
+        .catch(() => {});
 }
 
 // ===== Dernière photo =====
