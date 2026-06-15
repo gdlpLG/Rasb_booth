@@ -133,6 +133,12 @@ class ViewPlugin(object):
     def state_capture_enter(self, app, win):
         # Increment counter when entering capture (was in preview before)
         self.count += 1
+        
+        # Initialize capture_date if not set (was in state_preview_enter before)
+        if not app.capture_date:
+            import time
+            app.capture_date = time.strftime("%Y-%m-%d-%H-%M-%S")
+        
         win.set_capture_number(self.count, app.capture_nbr)
 
     @pibooth.hookimpl
